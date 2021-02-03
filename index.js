@@ -1,39 +1,62 @@
-const rp = require('request-promise');
-const otcsv = require('objects-to-csv');
-const cheerio = require('cheerio');
+const rp = require("request-promise");
+const otcsv = require("objects-to-csv");
+const cheerio = require("cheerio");
 
-const getPageHTML = async page => {
-  const baseURL = 'https://torchbearersakron.com/homepage/members'
+const getIndexPageHTML = async (page) => {
+  const baseURL = "https://torchbearersakron.com/homepage/members";
   const pageNumber = page || 1;
   const paginationQueryString = `?upage=${pageNumber}`;
 
-  return await rp(baseURL + paginationQueryString)
-}
+  return await rp(baseURL + paginationQueryString);
+};
 
-const getMemberUrl = element => element.attribs.href;
+const getMember = async (memberURL) => {
+  const member = {};
+  const memberPageHTML = await getMemberPageHTML(memberURL);
+
+  member.name = cheerio(".profile-fields .field_name:first-child .data p", memberPageHTML).text();
+  console.log(member.name);
+
+  return member;
+};
+
+const getMemberPageHTML = async (memberPageURL) => await rp(memberPageURL);
+
+const getMemberURL = (element) => element.attribs.href;
 
 const getMemberURLs = async () => {
   const currentPage = 1;
-  const memberSelectorFromList = '#members-list .item-title a';
-  const pageNumberSelector = '.pagination-links a.page-numbers:not(.next)';
-  const memberUrls = [];
+  const memberSelectorFromList = "#members-list .item-title a";
+  const pageNumberSelector = ".pagination-links a.page-numbers:not(.next)";
+  const memberURLs = [];
 
-  let html = await getPageHTML();
+  let indexPageHTML = await getIndexPageHTML();
 
-  const pageNumberElementList = cheerio(pageNumberSelector, html);
-  const lastPageNumber = pageNumberElementList[pageNumberElementList.length - 1].children[0].data;
+  const pageNumberElementList = cheerio(pageNumberSelector, indexPageHTML);
+  const lastPageNumber = 1; //pageNumberElementList[pageNumberElementList.length - 1]?.children[0]?.data;
 
   for (index = 0; index < lastPageNumber; index++) {
-    html = await getPageHTML(index);
+    indexPageHTML = await getIndexPageHTML(index);
 
-    const memberListElements = cheerio(memberSelectorFromList, html);
+    const memberListElements = cheerio(memberSelectorFromList, indexPageHTML);
 
     if (memberListElements.length > 0) {
-      memberListElements.map((index, element) => memberUrls.push(getMemberUrl(element)));
+      memberListElements.map((index, element) =>
+        memberURLs.push(getMemberURL(element))
+      );
     }
   }
 
-  return memberUrls;
+  return memberURLs;
 };
 
-const memberURLs = getMemberURLs();
+const main = async () => {
+  const members = [];
+  const memberURLs = await getMemberURLs();
+
+  await memberURLs.map(async (memberURL) => members.push(await getMember(memberURL)));
+
+  console.log(members);
+};
+
+main();
